@@ -24,18 +24,21 @@ const createEvent = async (req,res)=>{
             return; //exit the control from the handler method
         }
 
-        //check if the file field is present or not
-        if(!(req.file && req.file.path))
+        //check if the files field is present or not
+        if(!(req.files && Array.isArray(req.files) && req.files.length > 0))
         {
             //send the client error message to the client
             res.status(400).json({
-                error:"Image File is required",
+                error:"Image File/Files is required",
                 success:false
             });
             return; //exit the control from the handler method
         }
 
-        //if uid is not passed, generate a unique id 
+        //Extracting the files path to an array
+        const files=req.files.map(file=>file.path);
+
+        //if uid is not passed, generate a unique id(assumption for now) 
         if(!uid)
         {
             uid = new ObjectId();
@@ -50,16 +53,16 @@ const createEvent = async (req,res)=>{
             uid,
             name, 
             tagline, 
-            schedule, 
+            schedule:new Date(schedule), // ISO 8601 format
             description,
-            files:{
-                image:req.file.path
-            }, 
+            files, 
             moderator, 
             category, 
             sub_category, 
-            rigor_rank,
-            attendees:[]
+            rigor_rank: Number(rigor_rank),
+            attendees:[],
+            created_at: new Date(), // Set to the current date/time
+            updated_at: new Date()  // Set to the current date/time
         });
         if(createdEvent)
         {
@@ -213,20 +216,9 @@ const getPaginatedEvents = async (req,res)=>{
         //get paginated events based on its recency
         const paginatedEvents = await collection.aggregate([
             {
-                // Add a field with the ISODate format of the schedule
-                $addFields: {
-                    scheduleDate: {
-                        $dateFromString: {
-                            dateString: "$schedule",
-                            format: "%d %b, %Y %H:%M"  // Specify the format of the date string
-                        }
-                    }
-                }
-            },
-            {
-                // Sort by the new scheduleDate field
+                // Sort by recency
                 $sort: {
-                    scheduleDate: 1  // sort in asscending order(most recent first)
+                    created_at: -1  // sort in descending order(most recent first)
                 }
             },
             {   //No of docs to skip
@@ -248,7 +240,9 @@ const getPaginatedEvents = async (req,res)=>{
                     category: 1,
                     sub_category: 1,
                     rigor_rank: 1,
-                    attendees: 1
+                    attendees: 1,
+                    created_at: 1,
+                    updated_at: 1
                 }
             }
         ]).toArray();
@@ -335,16 +329,19 @@ const updateEventById = async (req,res)=>{
              return; //exit the control from the handler method
          }
 
-         //check if the file field is present or not
-        if(!(req.file && req.file.path))
+         //check if the files field is present or not
+        if(!(req.files && Array.isArray(req.files) && req.files.length > 0))
         {
             //send the client error message to the client
             res.status(400).json({
-                error:"Image File is required",
+                error:"Image File/Files is required",
                 success:false
             });
             return; //exit the control from the handler method
         }
+
+        //Extracting the files path to an array
+        const files=req.files.map(file=>file.path);
     
         //get the collection reference
         const collection = await getDBCollection(collection_name);
@@ -352,15 +349,15 @@ const updateEventById = async (req,res)=>{
         const updateFields={
             name,
             tagline,
-            schedule,
+            schedule:new Date(schedule), // ISO 8601 format
             description,
-            files:{
-                image:req.file.path
-            }, 
+            files, 
             moderator,
             category,
             sub_category,
-            rigor_rank};
+            rigor_rank: Number(rigor_rank),
+            updated_at: new Date() // Update the timestamp
+        };
 
         //update the event by its id
         const updatedEvent = await collection.updateOne(
